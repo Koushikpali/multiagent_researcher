@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>LangChain Multi-Agent Researcher</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#080808;
+  --surface:#111111;
+  --surface2:#191919;
+  --surface3:#222222;
+  --orange:#f97316;
+  --orange2:#ea580c;
+  --orange3:#c2410c;
+  --orange-dim:rgba(249,115,22,.12);
+  --orange-glow:rgba(249,115,22,.25);
+  --green:#22c55e;
+  --green-dim:rgba(34,197,94,.1);
+  --text:#f0f0f0;
+  --muted:#666;
+  --muted2:#444;
+  --border:#1f1f1f;
+  --border2:#2a2a2a;
+  --mono:'JetBrains Mono',monospace;
+  --sans:'Space Grotesk',sans-serif;
+}
+html,body{height:100%;background:var(--bg);}
+body{font-family:var(--sans);color:var(--text);font-size:14px;line-height:1.6;}
+
+/* SCROLLBARS */
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px;}
+::-webkit-scrollbar-thumb:hover{background:var(--orange3);}
+
+/* LAYOUT */
+.app{display:grid;grid-template-rows:auto 1fr;min-height:100vh;}
+
+/* HEADER */
+header{
+  border-bottom:1px solid var(--border2);
+  background:var(--surface);
+  padding:0 28px;
+  display:flex;align-items:center;gap:16px;height:58px;
+  position:sticky;top:0;z-index:100;
+}
+.logo-wrap{display:flex;align-items:center;gap:10px;}
+.logo-icon{
+  width:34px;height:34px;background:var(--orange);border-radius:8px;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 0 18px var(--orange-glow);
+  flex-shrink:0;
+}
+.logo-icon svg{width:19px;height:19px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.brand{font-size:17px;font-weight:700;letter-spacing:-.02em;}
+.brand em{color:var(--orange);font-style:normal;}
+.header-tag{
+  margin-left:10px;background:var(--orange-dim);color:var(--orange);
+  font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+  padding:3px 10px;border-radius:20px;border:1px solid rgba(249,115,22,.25);
+  font-family:var(--mono);
+}
+.header-right{margin-left:auto;display:flex;align-items:center;gap:12px;}
+.status-dot{
+  width:7px;height:7px;border-radius:50%;background:var(--muted2);
+  display:inline-block;transition:background .3s,box-shadow .3s;
+}
+.status-dot.running{background:var(--orange);box-shadow:0 0 8px var(--orange);animation:blink 1s ease-in-out infinite;}
+.status-dot.done{background:var(--green);box-shadow:0 0 8px var(--green);}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:.4;}}
+.status-label{font-size:11px;color:var(--muted);font-family:var(--mono);}
+
+/* MAIN */
+main{padding:24px 28px;display:flex;flex-direction:column;gap:20px;max-width:1100px;margin:0 auto;width:100%;}
+
+/* INPUT SECTION */
+.input-section{
+  background:var(--surface);border:1px solid var(--border2);
+  border-radius:14px;padding:20px;
+}
+.section-label{
+  font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--orange);font-family:var(--mono);margin-bottom:10px;
+}
+.input-row{display:flex;gap:10px;}
+.topic-input{
+  flex:1;background:var(--surface2);border:1px solid var(--border2);
+  border-radius:9px;color:var(--text);font-size:14px;padding:11px 16px;
+  outline:none;font-family:var(--sans);transition:border .2s,box-shadow .2s;
+}
+.topic-input:focus{border-color:var(--orange);box-shadow:0 0 0 3px var(--orange-dim);}
+.topic-input::placeholder{color:var(--muted);}
+.run-btn{
+  background:var(--orange);color:#fff;border:none;border-radius:9px;
+  padding:11px 22px;font-size:14px;font-weight:600;cursor:pointer;
+  display:flex;align-items:center;gap:8px;
+  font-family:var(--sans);transition:background .15s,box-shadow .2s,transform .1s;
+  white-space:nowrap;
+}
+.run-btn:hover{background:var(--orange2);box-shadow:0 0 20px var(--orange-glow);}
+.run-btn:active{transform:scale(.98);}
+.run-btn:disabled{background:#2a2a2a;color:#555;cursor:not-allowed;box-shadow:none;}
+.run-btn svg{width:14px;height:14px;fill:#fff;flex-shrink:0;}
+
+/* PIPELINE STEPS */
+.pipeline{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;position:relative;}
+.pipeline::before{
+  content:'';position:absolute;top:28px;left:calc(12.5% + 18px);
+  right:calc(12.5% + 18px);height:1px;
+  background:linear-gradient(to right,var(--border2),var(--border2));
+  z-index:0;
+}
+.step-card{
+  background:var(--surface);border:1px solid var(--border2);
+  border-radius:12px;padding:16px 12px;text-align:center;
+  transition:border .3s,background .3s,box-shadow .3s;
+  position:relative;z-index:1;cursor:default;
+}
+.step-card.active{
+  border-color:var(--orange);background:var(--orange-dim);
+  box-shadow:0 0 24px var(--orange-glow);
+}
+.step-card.done{border-color:rgba(34,197,94,.4);background:var(--green-dim);}
+.step-num{
+  font-family:var(--mono);font-size:9px;color:var(--muted);
+  margin-bottom:8px;letter-spacing:.05em;
+}
+.step-card.active .step-num{color:var(--orange);}
+.step-card.done .step-num{color:var(--green);}
+.step-icon-wrap{
+  width:40px;height:40px;border-radius:50%;margin:0 auto 10px;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--surface2);transition:background .3s,box-shadow .3s;
+  border:1px solid var(--border2);
+}
+.step-card.active .step-icon-wrap{background:var(--orange);border-color:var(--orange);box-shadow:0 0 14px var(--orange-glow);}
+.step-card.done .step-icon-wrap{background:var(--green);border-color:var(--green);}
+.step-icon-wrap svg{width:18px;height:18px;stroke:var(--muted);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:stroke .3s;}
+.step-card.active .step-icon-wrap svg,.step-card.done .step-icon-wrap svg{stroke:#fff;}
+.step-title{font-size:12px;font-weight:600;margin-bottom:2px;}
+.step-status{font-size:10px;color:var(--muted);font-family:var(--mono);}
+.step-card.active .step-status{color:var(--orange);}
+.step-card.done .step-status{color:var(--green);}
+
+/* RESULTS GRID */
+.results-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.result-box{background:var(--surface);border:1px solid var(--border2);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;}
+.result-box.full{grid-column:1/-1;}
+.result-header{
+  background:var(--surface2);border-bottom:1px solid var(--border2);
+  padding:10px 14px;display:flex;align-items:center;gap:8px;flex-shrink:0;
+}
+.result-header svg{width:14px;height:14px;stroke:var(--orange);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;}
+.result-title{font-size:11px;font-weight:600;color:var(--text);letter-spacing:.02em;}
+.result-badge{margin-left:auto;font-size:9px;font-family:var(--mono);color:var(--muted);background:var(--border2);padding:2px 7px;border-radius:10px;}
+.result-body{
+  padding:14px;font-size:12.5px;color:#aaa;line-height:1.75;
+  min-height:90px;max-height:170px;overflow-y:auto;flex:1;
+  font-family:var(--mono);
+}
+.report-body{
+  padding:16px;font-size:13px;color:var(--text);line-height:1.85;
+  white-space:pre-wrap;max-height:220px;overflow-y:auto;
+  font-family:var(--sans);
+}
+.placeholder{color:var(--muted2);font-style:italic;font-family:var(--sans);}
+
+/* LOG */
+.log-wrap{background:var(--surface);border:1px solid var(--border2);border-radius:12px;overflow:hidden;}
+.log-body{
+  padding:12px 16px;font-size:11.5px;color:var(--muted);
+  font-family:var(--mono);max-height:120px;overflow-y:auto;
+}
+.log-line{display:flex;gap:10px;margin-bottom:3px;align-items:baseline;}
+.log-ts{color:var(--muted2);min-width:70px;font-size:10px;}
+.log-ok{color:var(--green);}
+.log-run{color:var(--orange);}
+.log-info{color:var(--muted);}
+.log-err{color:#ef4444;}
+
+/* SPINNER */
+.spinner{
+  display:inline-block;width:13px;height:13px;
+  border:2px solid rgba(255,255,255,.2);border-top-color:#fff;
+  border-radius:50%;animation:spin .6s linear infinite;flex-shrink:0;
+}
+@keyframes spin{to{transform:rotate(360deg);}}
+.pulse-text{animation:ptxt 1.4s ease-in-out infinite;color:var(--orange);}
+@keyframes ptxt{0%,100%{opacity:1;}50%{opacity:.35;}}
+
+/* FOOTER */
+footer{
+  border-top:1px solid var(--border2);padding:12px 28px;
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:11px;color:var(--muted);font-family:var(--mono);
+}
+footer span{color:var(--orange);}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="logo-wrap">
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      </div>
+      <div class="brand">Lang<em>Chain</em> Research</div>
+      <div class="header-tag">Multi-Agent</div>
+    </div>
+    <div class="header-right">
+      <span class="status-dot" id="status-dot"></span>
+      <span class="status-label" id="status-label">idle</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- INPUT -->
+    <div class="input-section">
+      <div class="section-label">Research Topic</div>
+      <div class="input-row">
+        <input class="topic-input" id="topic-input" type="text" placeholder="e.g. Recent breakthroughs in quantum computing 2025…" autocomplete="off"/>
+        <button class="run-btn" id="run-btn" onclick="runPipeline()">
+          <svg viewBox="0 0 24 24" style="fill:#fff;stroke:none"><polygon points="5,3 19,12 5,21"/></svg>
+          Run Pipeline
+        </button>
+      </div>
+    </div>
+
+    <!-- PIPELINE STEPS -->
+    <div>
+      <div class="section-label">Pipeline Stages</div>
+      <div class="pipeline">
+        <div class="step-card" id="step-0">
+          <div class="step-num">01 / SEARCH</div>
+          <div class="step-icon-wrap">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </div>
+          <div class="step-title">Search Agent</div>
+          <div class="step-status" id="sub-0">idle</div>
+        </div>
+        <div class="step-card" id="step-1">
+          <div class="step-num">02 / READER</div>
+          <div class="step-icon-wrap">
+            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          </div>
+          <div class="step-title">Reader Agent</div>
+          <div class="step-status" id="sub-1">idle</div>
+        </div>
+        <div class="step-card" id="step-2">
+          <div class="step-num">03 / WRITER</div>
+          <div class="step-icon-wrap">
+            <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          </div>
+          <div class="step-title">Writer Chain</div>
+          <div class="step-status" id="sub-2">idle</div>
+        </div>
+        <div class="step-card" id="step-3">
+          <div class="step-num">04 / CRITIC</div>
+          <div class="step-icon-wrap">
+            <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          </div>
+          <div class="step-title">Critic Chain</div>
+          <div class="step-status" id="sub-3">idle</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RESULTS -->
+    <div class="results-grid">
+      <div class="result-box" id="box-search">
+        <div class="result-header">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <span class="result-title">Search Results</span>
+          <span class="result-badge" id="badge-search">pending</span>
+        </div>
+        <div class="result-body" id="out-search"><span class="placeholder">Awaiting pipeline run…</span></div>
+      </div>
+      <div class="result-box" id="box-reader">
+        <div class="result-header">
+          <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span class="result-title">Scraped Content</span>
+          <span class="result-badge" id="badge-reader">pending</span>
+        </div>
+        <div class="result-body" id="out-reader"><span class="placeholder">Awaiting pipeline run…</span></div>
+      </div>
+      <div class="result-box full" id="box-report">
+        <div class="result-header">
+          <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          <span class="result-title">Generated Report</span>
+          <span class="result-badge" id="badge-report">pending</span>
+        </div>
+        <div class="report-body" id="out-report"><span class="placeholder">Awaiting pipeline run…</span></div>
+      </div>
+      <div class="result-box full" id="box-critic">
+        <div class="result-header">
+          <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          <span class="result-title">Critic Feedback</span>
+          <span class="result-badge" id="badge-critic">pending</span>
+        </div>
+        <div class="result-body" id="out-critic"><span class="placeholder">Awaiting pipeline run…</span></div>
+      </div>
+    </div>
+
+    <!-- LOG -->
+    <div class="log-wrap">
+      <div class="result-header">
+        <svg viewBox="0 0 24 24" style="stroke:var(--muted)"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+        <span class="result-title">Pipeline Log</span>
+        <span class="result-badge" id="badge-log">console</span>
+      </div>
+      <div class="log-body" id="log-body">
+        <div class="log-line">
+          <span class="log-ts">--:--:--</span>
+          <span class="log-info">Ready. Enter a topic and click Run Pipeline.</span>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <span>LangChain</span> Multi-Agent Research Pipeline &nbsp;|&nbsp; Powered by Claude API
+    <span id="run-time"></span>
+  </footer>
+</div>
+
+<script>
+let running = false;
+let startTime = null;
+
+const stepSubs = [
+  'searching web…',
+  'scraping content…',
+  'drafting report…',
+  'evaluating quality…'
+];
+
+function ts() {
+  const n = new Date();
+  return [n.getHours(), n.getMinutes(), n.getSeconds()]
+    .map(v => String(v).padStart(2, '0')).join(':');
+}
+
+function log(msg, cls = 'log-info') {
+  const lb = document.getElementById('log-body');
+  const d = document.createElement('div');
+  d.className = 'log-line';
+  d.innerHTML = `<span class="log-ts">${ts()}</span><span class="${cls}">${msg}</span>`;
+  lb.appendChild(d);
+  lb.scrollTop = lb.scrollHeight;
+}
+
+function setStep(i, state) {
+  const card = document.getElementById('step-' + i);
+  const sub = document.getElementById('sub-' + i);
+  card.className = 'step-card' + (state === 'active' ? ' active' : state === 'done' ? ' done' : '');
+  if (state === 'active') sub.textContent = stepSubs[i];
+  else if (state === 'done') sub.textContent = '✓ complete';
+  else sub.textContent = 'idle';
+}
+
+function setOut(id, html) {
+  document.getElementById(id).innerHTML = html;
+}
+
+function setBadge(id, text) {
+  document.getElementById(id).textContent = text;
+}
+
+function setStatus(state) {
+  const dot = document.getElementById('status-dot');
+  const lbl = document.getElementById('status-label');
+  dot.className = 'status-dot' + (state === 'running' ? ' running' : state === 'done' ? ' done' : '');
+  lbl.textContent = state;
+}
+
+async function runResearch(topic) {
+  const response = await fetch('/research', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      topic: topic
+    })
+  });
+
+  const data = await response.json();
+
+  if (!data.success) {
+    throw new Error(data.error);
+  }
+
+  return data;
+}
+async function runPipeline() {
+
+  if (running) return;
+
+  const topic = document.getElementById('topic-input').value.trim();
+
+  if (!topic) {
+      document.getElementById('topic-input').focus();
+      return;
+  }
+
+  running = true;
+
+  try {
+
+      setStatus('running');
+
+      document.getElementById('run-btn').disabled = true;
+
+      setStep(0,'active');
+
+      const data = await runResearch(topic);
+
+      setStep(0,'done');
+      setStep(1,'done');
+      setStep(2,'done');
+      setStep(3,'done');
+
+      setOut('out-search', data.search_results || 'No search results');
+      setOut('out-reader', data.scrape_result || 'No scraped content');
+      setOut('out-report', data.report || 'No report generated');
+      setOut('out-critic', data.feedback || 'No feedback');
+
+      setBadge('badge-search','done');
+      setBadge('badge-reader','done');
+      setBadge('badge-report','done');
+      setBadge('badge-critic','done');
+
+      setStatus('done');
+
+      log('Pipeline completed successfully','log-ok');
+
+  }
+  catch(err){
+
+      log(err.message,'log-err');
+      setStatus('idle');
+
+  }
+  finally{
+
+      running = false;
+      document.getElementById('run-btn').disabled = false;
+
+  }
+}
+document.getElementById('topic-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') runPipeline();
+});
+</script>
+</body>
+</html>
